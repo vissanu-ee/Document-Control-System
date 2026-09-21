@@ -369,6 +369,8 @@
         <p class="text-xs text-ink-500 mb-4">วาง Web App URL จากการ Deploy Google Apps Script (ลงท้ายด้วย <code>/exec</code>)</p>
         <label class="lbl">Web App URL</label>
         <input id="apiUrl" class="fld" placeholder="https://script.google.com/macros/s/AKfycb...../exec" />
+        <label class="lbl mt-3">API Key (ต้องตรงกับค่า API_KEY ในไฟล์ .gs)</label>
+        <input id="apiKey" type="password" class="fld" placeholder="ใส่รหัสลับเดียวกับที่ตั้งไว้ใน Apps Script" />
         <div class="flex flex-wrap gap-2 mt-4">
           <button onclick="saveApi()" class="bg-brand-800 hover:bg-brand-900 text-white text-sm font-semibold px-4 py-2.5 rounded-lg">💾 บันทึก &amp; ทดสอบ</button>
           <button onclick="reloadCloud()" class="bg-ink-100 hover:bg-ink-200 text-ink-700 text-sm font-semibold px-4 py-2.5 rounded-lg">🔄 ดึงข้อมูล</button>
@@ -475,8 +477,8 @@ const CLOSED = ['อนุมัติ','อนุมัติตามหมา
 const PALETTE  = ['#15257e','#3c56bd','#55b99b','#dfa84e','#d97b7b','#6a80d1','#7fbfd6','#9aabe2'];
 const ST_COLOR = {'รอดำเนินการ':'#b4bfcf','อนุมัติ':'#55b99b','อนุมัติตามหมายเหตุ':'#dfa84e','ไม่อนุมัติ':'#d97b7b','ยกเลิก':'#d8dee7'};
 
-const LS_KEY='ten_dcs_docs_v2', LS_API='ten_dcs_api_v2', LS_PRJ='ten_dcs_project_v1';
-let DOCS=[], PRJ={...PRJ_DEFAULT}, API_URL=localStorage.getItem(LS_API)||'';
+const LS_KEY='ten_dcs_docs_v2', LS_API='ten_dcs_api_v2', LS_PRJ='ten_dcs_project_v1', LS_APIKEY='ten_dcs_apikey_v1';
+let DOCS=[], PRJ={...PRJ_DEFAULT}, API_URL=localStorage.getItem(LS_API)||'', API_KEY=localStorage.getItem(LS_APIKEY)||'';
 let charts={}, page=1, sortKey='transDate', sortDir=-1;
 
 /* =========================================================
@@ -601,18 +603,20 @@ function updateConnBadge(){
 }
 async function api(action,payload){
   if(!API_URL) throw new Error('ยังไม่ได้ตั้งค่า Web App URL');
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload})});
+  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload,key:API_KEY})});
   const j=await res.json(); if(!j.ok) throw new Error(j.error||'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์'); return j;
 }
 async function apiList(){
-  const res=await fetch(API_URL+'?action=list&t='+Date.now());
+  const res=await fetch(API_URL+'?action=list&key='+encodeURIComponent(API_KEY)+'&t='+Date.now());
   const j=await res.json(); if(!j.ok) throw new Error(j.error||'อ่านข้อมูลไม่สำเร็จ'); return j.data||[];
 }
 async function saveApi(){
   const v=$('apiUrl').value.trim();
+  const k=$('apiKey').value.trim();
   if(!v) return toast('warning','กรุณากรอก URL');
   if(!/\/exec$/.test(v)) return toast('warning','URL ต้องลงท้ายด้วย /exec');
-  API_URL=v; localStorage.setItem(LS_API,v); updateConnBadge();
+  if(!k) return toast('warning','กรุณากรอก API Key ให้ตรงกับที่ตั้งไว้ใน Apps Script');
+  API_URL=v; API_KEY=k; localStorage.setItem(LS_API,v); localStorage.setItem(LS_APIKEY,k); updateConnBadge();
   Swal.fire({title:'กำลังทดสอบการเชื่อมต่อ...',didOpen:()=>Swal.showLoading(),allowOutsideClick:false});
   try{ const d=await apiList(); DOCS=d; saveLocal(); refresh();
     Swal.fire({icon:'success',title:'เชื่อมต่อสำเร็จ',text:'พบข้อมูล '+d.length+' รายการบน Google Sheets',confirmButtonColor:'#15257e'});
@@ -632,7 +636,7 @@ async function pushAllToCloud(){
   try{ await api('bulkImport',DOCS); Swal.close(); toast('success','อัปโหลดสำเร็จ'); }
   catch(e){ Swal.fire({icon:'error',title:'ผิดพลาด',text:e.message}); }
 }
-function disconnectApi(){ API_URL=''; localStorage.removeItem(LS_API); $('apiUrl').value=''; updateConnBadge(); toast('info','ตัดการเชื่อมต่อแล้ว ใช้งานแบบออฟไลน์'); }
+function disconnectApi(){ API_URL=''; API_KEY=''; localStorage.removeItem(LS_API); localStorage.removeItem(LS_APIKEY); $('apiUrl').value=''; $('apiKey').value=''; updateConnBadge(); toast('info','ตัดการเชื่อมต่อแล้ว ใช้งานแบบออฟไลน์'); }
 function wipeLocal(){
   Swal.fire({title:'ล้างข้อมูลในเครื่อง?',icon:'warning',showCancelButton:true,confirmButtonText:'ล้างข้อมูล',cancelButtonText:'ยกเลิก',confirmButtonColor:'#b34a4a'})
   .then(r=>{ if(r.isConfirmed){ DOCS=[]; saveLocal(); refresh(); toast('success','ล้างข้อมูลแล้ว'); }});
@@ -1241,6 +1245,7 @@ function bind(){
 (async function init(){
   initSelects(); bind(); loadProject(); updateConnBadge();
   $('apiUrl').value=API_URL;
+  $('apiKey').value=API_KEY;
   const cache=localStorage.getItem(LS_KEY);
   if(cache){ try{ DOCS=JSON.parse(cache);}catch(e){DOCS=[];} }
   if(API_URL){
