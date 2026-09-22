@@ -109,21 +109,47 @@
 
 <body class="font-sans text-ink-800">
 
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="fixed inset-0 z-[100] flex items-center justify-center bg-brand-900 px-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-7">
+    <div class="flex flex-col items-center gap-2.5 mb-6">
+      <div class="bg-white rounded-xl px-5 py-3.5 shadow-none border border-ink-100">
+        <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN CONSULTANTS CO.,LTD." class="h-16" />
+      </div>
+      <h1 class="text-base font-bold text-brand-800 text-center leading-snug">Site Document Control System</h1>
+      <p class="text-[11px] text-ink-500 text-center leading-snug">TEN CONSULTANTS CO.,LTD.</p>
+    </div>
+    <form id="loginForm" onsubmit="return doLogin(event)" class="space-y-3">
+      <div>
+        <label class="lbl">ชื่อผู้ใช้งาน</label>
+        <input id="loginUser" class="fld" autocomplete="username" placeholder="Username" required />
+      </div>
+      <div>
+        <label class="lbl">รหัสผ่าน</label>
+        <input id="loginPass" type="password" class="fld" autocomplete="current-password" placeholder="Password" required />
+      </div>
+      <p id="loginError" class="text-[12px] text-rose-600 font-semibold hidden">⚠ ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง</p>
+      <button type="submit" class="w-full bg-brand-800 hover:bg-brand-900 text-white text-sm font-semibold px-4 py-2.5 rounded-lg mt-1">🔐 เข้าสู่ระบบ</button>
+    </form>
+  </div>
+</div>
+
+<div id="appShell" class="hidden">
 <!-- ============ SIDEBAR ============ -->
 <aside id="sidebar" class="no-print fixed z-40 inset-y-0 left-0 w-64 bg-brand-900 text-white flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-300">
 
   <!-- Brand Lockup : โลโก้ + ชื่อบริษัท บรรทัดเดียวกัน -->
-  <div class="px-3 py-4 bg-white border-b border-ink-200">
-    <div class="bg-white rounded-xl px-2.5 py-2 shadow-none">
-      <div class="brand-lockup h-8">
+  <div class="px-3 py-5 bg-white border-b border-ink-200">
+    <div class="bg-white rounded-xl px-3 py-2.5 shadow-none">
+      <div class="brand-lockup h-11">
         <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN CONSULTANTS CO.,LTD." />
-        <span class="brand-name text-brand-800" style="font-size:12.5px">TEN CONSULTANTS CO.,LTD.</span>
+        <span class="brand-name text-brand-800" style="font-size:13px">TEN CONSULTANTS CO.,LTD.</span>
       </div>
     </div>
   </div>
-  <div class="px-4 py-2.5 bg-white/5 border-b border-white/10">
-    <p class="text-[11px] text-brand-200 font-semibold">Site Document Control System</p>
-    <p id="sbPrjName" class="text-[10px] text-brand-300 truncate">—</p>
+  <div class="px-4 py-2.5 bg-white/5 border-b border-white/10 space-y-0.5">
+    <p class="text-[11px] text-brand-200 font-semibold leading-snug">Site Document Control System</p>
+    <p id="sbPrjName" class="text-[10px] text-brand-300 truncate leading-snug">—</p>
   </div>
 
   <nav class="flex-1 p-3 space-y-1 text-sm overflow-auto">
@@ -149,8 +175,9 @@
     </button>
   </nav>
 
-  <div class="p-3 border-t border-white/10">
+  <div class="p-3 border-t border-white/10 space-y-2">
     <div id="connBadge" class="text-[11px] px-3 py-2 rounded-lg bg-white/10 text-brand-100">● โหมด: เครื่องนี้ (LocalStorage)</div>
+    <button onclick="doLogout()" class="w-full text-[11px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 font-semibold">🔓 ออกจากระบบ (<span id="loginUserLabel"></span>)</button>
   </div>
 </aside>
 <div id="overlay" class="no-print fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
@@ -165,7 +192,7 @@
         <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
-      <div class="lg:hidden brand-lockup h-7 shrink-0">
+      <div class="lg:hidden brand-lockup h-9 shrink-0">
         <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN" />
       </div>
 
@@ -336,10 +363,41 @@
     <!-- ========== VIEW: SETTINGS ========== -->
     <section id="view-settings" class="hidden max-w-3xl space-y-4 fade-up">
 
+      <!-- บัญชีของฉัน -->
+      <div class="bg-white rounded-2xl shadow-card p-6">
+        <h3 class="font-bold text-brand-800 mb-1">บัญชีของฉัน (My Account)</h3>
+        <p class="text-xs text-ink-500 mb-4">ข้อมูลผู้ใช้งานที่เข้าสู่ระบบอยู่ในขณะนี้</p>
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="flex-1 min-w-[200px] space-y-0.5">
+            <p class="text-sm font-semibold text-brand-800" id="acctDisplayName">—</p>
+            <p class="text-[12px] text-ink-500">Username: <span id="acctUsername" class="font-semibold text-ink-700">—</span></p>
+            <p class="text-[12px] text-ink-500">สิทธิ์การใช้งาน: <span id="acctRole" class="font-semibold text-ink-700">—</span></p>
+          </div>
+          <button onclick="openChangePassword()" class="bg-brand-100 hover:brightness-95 text-brand-700 text-sm font-semibold px-4 py-2.5 rounded-lg shrink-0">🔑 เปลี่ยนรหัสผ่าน</button>
+        </div>
+      </div>
+
+      <!-- จัดการผู้ใช้งาน (เฉพาะ admin) -->
+      <div id="userMgmtCard" class="bg-white rounded-2xl shadow-card p-6 hidden">
+        <div class="flex items-center gap-3 mb-1">
+          <h3 class="font-bold text-brand-800">จัดการผู้ใช้งาน (User Management)</h3>
+          <button onclick="openUserForm(null)" class="ml-auto bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold px-3.5 py-2 rounded-lg">➕ เพิ่มผู้ใช้งาน</button>
+        </div>
+        <p class="text-xs text-ink-500 mb-4">เฉพาะผู้ดูแลระบบ (admin) — เพิ่ม/แก้ไข/ระงับผู้ใช้งาน และตั้งรหัสผ่านใหม่ให้ผู้ใช้งานได้</p>
+        <div class="overflow-auto">
+          <table class="w-full text-[13px]">
+            <thead class="text-left text-ink-500 border-b border-ink-100">
+              <tr><th class="py-2 font-semibold">Username</th><th class="font-semibold">ชื่อที่แสดง</th><th class="font-semibold">สิทธิ์</th><th class="font-semibold">สถานะ</th><th></th></tr>
+            </thead>
+            <tbody id="userListBody"><tr><td colspan="5" class="py-4 text-center text-ink-400">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- ข้อมูลโครงการ -->
       <div class="bg-white rounded-2xl shadow-card p-6">
         <div class="flex items-center gap-3 mb-4">
-          <div class="brand-lockup h-8">
+          <div class="brand-lockup h-9">
             <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN CONSULTANTS CO.,LTD." />
             <span class="brand-name text-brand-800 text-[13px]">TEN CONSULTANTS CO.,LTD.</span>
           </div>
@@ -397,8 +455,8 @@
     </section>
   </div>
 
-  <footer class="no-print px-6 py-4 border-t border-ink-200 bg-white flex flex-wrap items-center gap-2">
-    <div class="brand-lockup h-5">
+  <footer class="no-print px-6 py-4 border-t border-ink-200 bg-white flex flex-wrap items-center gap-2.5">
+    <div class="brand-lockup h-6">
       <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN" />
       <span class="brand-name text-brand-800 text-[11px]">TEN CONSULTANTS CO.,LTD.</span>
     </div>
@@ -412,7 +470,7 @@
   <div class="relative mx-auto my-6 w-[95%] max-w-4xl bg-white rounded-2xl shadow-2xl max-h-[92vh] flex flex-col fade-up">
     <div class="px-6 py-4 border-b border-ink-100 flex items-center gap-3 bg-brand-50 rounded-t-2xl">
       <div class="min-w-0">
-        <div class="brand-lockup h-5 mb-1">
+        <div class="brand-lockup h-6 mb-1.5">
           <img src="" data-logo="ten" onerror="logoErr(this)" alt="TEN" />
           <span class="brand-name text-brand-800 text-[11px]">TEN CONSULTANTS CO.,LTD.</span>
         </div>
@@ -451,6 +509,8 @@
   </div>
 </div>
 
+</div><!-- /#appShell -->
+
 <script>
 /* =========================================================
    COMPANY / PROJECT / MASTER DATA
@@ -478,7 +538,172 @@ const PALETTE  = ['#15257e','#3c56bd','#55b99b','#dfa84e','#d97b7b','#6a80d1','#
 const ST_COLOR = {'รอดำเนินการ':'#b4bfcf','อนุมัติ':'#55b99b','อนุมัติตามหมายเหตุ':'#dfa84e','ไม่อนุมัติ':'#d97b7b','ยกเลิก':'#d8dee7'};
 
 const LS_KEY='ten_dcs_docs_v2', LS_API='ten_dcs_api_v2', LS_PRJ='ten_dcs_project_v1', LS_APIKEY='ten_dcs_apikey_v1';
-let DOCS=[], PRJ={...PRJ_DEFAULT}, API_URL=localStorage.getItem(LS_API)||'', API_KEY=localStorage.getItem(LS_APIKEY)||'';
+
+/* ตั้งค่าเริ่มต้นสำหรับการเชื่อมต่อ Backend (Google Apps Script Web App)
+   ผู้ดูแลระบบใส่ค่าจริงตรงนี้ครั้งเดียวตอน deploy เพื่อให้ผู้ใช้ทุกคน
+   เปิดเว็บแล้วเจอหน้า Login ได้เลย โดยไม่ต้องตั้งค่าเอง (ยังแก้ไขทีหลังได้
+   ผ่านเมนู ตั้งค่าระบบ ซึ่งจะถูกจำไว้ในเครื่องนั้นแทน) */
+const DEFAULT_API_URL = '';
+const DEFAULT_API_KEY = '';
+
+let DOCS=[], PRJ={...PRJ_DEFAULT};
+let API_URL = localStorage.getItem(LS_API) || DEFAULT_API_URL;
+let API_KEY = localStorage.getItem(LS_APIKEY) || DEFAULT_API_KEY;
+
+/* =========================================================
+   LOGIN — ตรวจสอบ username/password กับ Backend (ไม่มีอยู่ในซอร์สโค้ด)
+   รองรับหลายผู้ใช้ + เปลี่ยนรหัสผ่านได้ + จัดการผู้ใช้ (เฉพาะ admin)
+========================================================= */
+const LS_LOGIN = 'ten_dcs_session_v2';
+let CURRENT_USER = null;     // {username, displayName, role}
+let CURRENT_PASSWORD = null; // เก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น (ไม่บันทึกลง storage)
+                              // ใช้ยืนยันตัวตนซ้ำเวลาทำรายการที่ต้องเป็น admin เท่านั้น
+
+async function doLogin(ev){
+  ev.preventDefault();
+  $('loginError').classList.add('hidden');
+  const u=$('loginUser').value.trim(), p=$('loginPass').value;
+  const btn=$('loginForm').querySelector('button[type=submit]');
+  if(!API_URL || !API_KEY){
+    $('loginError').textContent='⚠ ระบบยังไม่ได้ตั้งค่าการเชื่อมต่อ Backend กรุณาติดต่อผู้ดูแลระบบ';
+    $('loginError').classList.remove('hidden');
+    return false;
+  }
+  btn.disabled=true; const btnTxt=btn.textContent; btn.textContent='กำลังตรวจสอบ...';
+  try{
+    const res=await api('login',{username:u,password:p});
+    CURRENT_USER=res.data; CURRENT_PASSWORD=p;
+    sessionStorage.setItem(LS_LOGIN, JSON.stringify(CURRENT_USER));
+    $('loginForm').reset();
+    showApp_(CURRENT_USER);
+  }catch(e){
+    $('loginError').textContent='⚠ '+(e.message||'เข้าสู่ระบบไม่สำเร็จ');
+    $('loginError').classList.remove('hidden');
+  }finally{
+    btn.disabled=false; btn.textContent=btnTxt;
+  }
+  return false;
+}
+function doLogout(){
+  Swal.fire({title:'ออกจากระบบ?',icon:'question',showCancelButton:true,confirmButtonText:'ออกจากระบบ',cancelButtonText:'ยกเลิก',confirmButtonColor:'#15257e'})
+  .then(r=>{ if(r.isConfirmed){ sessionStorage.removeItem(LS_LOGIN); CURRENT_USER=null; CURRENT_PASSWORD=null; location.reload(); }});
+}
+function showApp_(user){
+  $('loginScreen').classList.add('hidden');
+  $('appShell').classList.remove('hidden');
+  const lbl=$('loginUserLabel'); if(lbl) lbl.textContent=user.displayName||user.username;
+  renderAccountInfo_();
+  toggleAdminUI_();
+}
+function renderAccountInfo_(){
+  if(!CURRENT_USER) return;
+  if($('acctDisplayName')) $('acctDisplayName').textContent=CURRENT_USER.displayName||CURRENT_USER.username;
+  if($('acctUsername')) $('acctUsername').textContent=CURRENT_USER.username;
+  if($('acctRole')) $('acctRole').textContent = CURRENT_USER.role==='admin' ? 'ผู้ดูแลระบบ (admin)' : 'ผู้ใช้งานทั่วไป (user)';
+}
+function checkSession_(){
+  try{
+    const raw=sessionStorage.getItem(LS_LOGIN);
+    if(raw){ CURRENT_USER=JSON.parse(raw); showApp_(CURRENT_USER); return; }
+  }catch(e){}
+  $('loginUser') && $('loginUser').focus();
+}
+
+/* ---------- เปลี่ยนรหัสผ่านของตัวเอง ---------- */
+async function openChangePassword(){
+  const { value: fv } = await Swal.fire({
+    title:'เปลี่ยนรหัสผ่าน',
+    html:
+      '<input id="swalOldPass" type="password" class="swal2-input" placeholder="รหัสผ่านเดิม" autocomplete="current-password">'+
+      '<input id="swalNewPass" type="password" class="swal2-input" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" autocomplete="new-password">'+
+      '<input id="swalNewPass2" type="password" class="swal2-input" placeholder="ยืนยันรหัสผ่านใหม่" autocomplete="new-password">',
+    focusConfirm:false, showCancelButton:true, confirmButtonText:'บันทึก', cancelButtonText:'ยกเลิก', confirmButtonColor:'#15257e',
+    preConfirm:()=>{
+      const o=document.getElementById('swalOldPass').value;
+      const n1=document.getElementById('swalNewPass').value;
+      const n2=document.getElementById('swalNewPass2').value;
+      if(!o||!n1||!n2){ Swal.showValidationMessage('กรุณากรอกให้ครบทุกช่อง'); return false; }
+      if(n1.length<6){ Swal.showValidationMessage('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร'); return false; }
+      if(n1!==n2){ Swal.showValidationMessage('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน'); return false; }
+      return {oldPassword:o,newPassword:n1};
+    }
+  });
+  if(!fv) return;
+  try{
+    await api('changePassword',{username:CURRENT_USER.username,oldPassword:fv.oldPassword,newPassword:fv.newPassword});
+    CURRENT_PASSWORD=fv.newPassword;
+    Swal.fire({icon:'success',title:'เปลี่ยนรหัสผ่านสำเร็จ',timer:1800,showConfirmButton:false});
+  }catch(e){
+    Swal.fire({icon:'error',title:'เปลี่ยนรหัสผ่านไม่สำเร็จ',text:e.message,confirmButtonColor:'#15257e'});
+  }
+}
+
+/* ---------- จัดการผู้ใช้งาน (เฉพาะ admin) ---------- */
+function toggleAdminUI_(){
+  const show = CURRENT_USER && CURRENT_USER.role==='admin';
+  const card=$('userMgmtCard');
+  if(card) card.classList.toggle('hidden', !show);
+  if(show && !$('view-settings').classList.contains('hidden')) loadUserList();
+}
+async function loadUserList(){
+  $('userListBody').innerHTML='<tr><td colspan="5" class="py-4 text-center text-ink-400">กำลังโหลด...</td></tr>';
+  try{
+    const res=await api('listUsers',{adminUsername:CURRENT_USER.username,adminPassword:CURRENT_PASSWORD});
+    renderUserList(res.data);
+  }catch(e){
+    $('userListBody').innerHTML='<tr><td colspan="5" class="py-4 text-center text-rose-500">'+esc(e.message)+'</td></tr>';
+  }
+}
+function renderUserList(list){
+  $('userListBody').innerHTML=(list||[]).map(u=>`
+    <tr class="border-b border-ink-50">
+      <td class="py-2.5 font-semibold">${esc(u.username)}</td>
+      <td>${esc(u.displayName||'-')}</td>
+      <td>${u.role==='admin' ? '<span class="text-brand-700 font-semibold">ผู้ดูแลระบบ</span>' : 'ผู้ใช้งานทั่วไป'}</td>
+      <td>${u.active ? '<span class="text-mint-600 font-semibold">● ใช้งาน</span>' : '<span class="text-rose-500 font-semibold">● ระงับ</span>'}</td>
+      <td class="text-right"><button onclick="openUserForm(${esc(JSON.stringify(u)).replace(/"/g,'&quot;')})" class="text-xs px-2.5 py-1.5 rounded-lg bg-ink-100 text-ink-700 font-semibold hover:bg-ink-200">แก้ไข</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="py-4 text-center text-ink-400">ยังไม่มีผู้ใช้งาน</td></tr>';
+}
+async function openUserForm(existingJson){
+  const existing = typeof existingJson==='string' ? JSON.parse(existingJson) : existingJson;
+  const isEdit=!!existing;
+  const { value: fv } = await Swal.fire({
+    title: isEdit ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งานใหม่',
+    html:
+      `<input id="swalUsername" class="swal2-input" placeholder="Username" value="${isEdit?esc(existing.username):''}" ${isEdit?'disabled':''}>`+
+      `<input id="swalDisplayName" class="swal2-input" placeholder="ชื่อที่แสดง" value="${isEdit?esc(existing.displayName||''):''}">`+
+      `<select id="swalRole" class="swal2-input">
+         <option value="user" ${isEdit&&existing.role==='user'?'selected':''}>ผู้ใช้งานทั่วไป (user)</option>
+         <option value="admin" ${isEdit&&existing.role==='admin'?'selected':''}>ผู้ดูแลระบบ (admin)</option>
+       </select>`+
+      `<label style="display:flex;align-items:center;gap:8px;margin:10px 6px;font-size:14px;color:#414f66">
+         <input id="swalActive" type="checkbox" ${(!isEdit||existing.active)?'checked':''}> เปิดใช้งานบัญชีนี้
+       </label>`+
+      `<input id="swalPassword" type="password" class="swal2-input" placeholder="${isEdit?'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)':'รหัสผ่าน (อย่างน้อย 6 ตัว)'}" autocomplete="new-password">`,
+    focusConfirm:false, showCancelButton:true, confirmButtonText:'บันทึก', cancelButtonText:'ยกเลิก', confirmButtonColor:'#15257e',
+    preConfirm:()=>{
+      const username=document.getElementById('swalUsername').value.trim();
+      const displayName=document.getElementById('swalDisplayName').value.trim();
+      const role=document.getElementById('swalRole').value;
+      const active=document.getElementById('swalActive').checked;
+      const password=document.getElementById('swalPassword').value;
+      if(!username){ Swal.showValidationMessage('กรุณากรอก Username'); return false; }
+      if(!isEdit && password.length<6){ Swal.showValidationMessage('กรุณากำหนดรหัสผ่านอย่างน้อย 6 ตัวอักษร'); return false; }
+      if(password && password.length<6){ Swal.showValidationMessage('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return false; }
+      return {username,displayName,role,active,password};
+    }
+  });
+  if(!fv) return;
+  try{
+    await api('saveUser',{adminUsername:CURRENT_USER.username,adminPassword:CURRENT_PASSWORD,
+      username:fv.username,displayName:fv.displayName,role:fv.role,active:fv.active,password:fv.password});
+    Swal.fire({icon:'success',title:'บันทึกผู้ใช้งานสำเร็จ',timer:1500,showConfirmButton:false});
+    loadUserList();
+  }catch(e){
+    Swal.fire({icon:'error',title:'บันทึกไม่สำเร็จ',text:e.message,confirmButtonColor:'#15257e'});
+  }
+}
+
 let charts={}, page=1, sortKey='transDate', sortDir=-1;
 
 /* =========================================================
@@ -938,15 +1163,15 @@ function renderReport(){
 
   $('rptPaper').innerHTML=`
   <!-- HEADER -->
-  <div style="display:flex;align-items:center;gap:10px;border-bottom:2.5px solid #15257e;padding-bottom:8px">
-    <img src="${LOGO_SRC}" onerror="logoErr(this)" alt="TEN" style="height:42px;width:auto;object-fit:contain" />
+  <div style="display:flex;align-items:center;gap:12px;border-bottom:2.5px solid #15257e;padding-bottom:8px">
+    <img src="${LOGO_SRC}" onerror="logoErr(this)" alt="TEN" style="height:48px;width:auto;object-fit:contain" />
     <div style="flex:1;min-width:0">
       <div style="font-size:15px;font-weight:800;color:#15257e;letter-spacing:.02em">TEN CONSULTANTS CO.,LTD.</div>
-      <div style="font-size:10px;color:#667897">Construction Supervision &amp; Project Management Consultant</div>
+      <div style="font-size:10px;color:#667897;margin-top:2px">Construction Supervision &amp; Project Management Consultant</div>
     </div>
     <div style="text-align:right">
       <div style="font-size:9.5px;color:#8897ae">เอกสารเลขที่</div>
-      <div style="font-size:11px;font-weight:700;color:#15257e">DCR-${ym.replace('-','')}</div>
+      <div style="font-size:11px;font-weight:700;color:#15257e;margin-top:2px">DCR-${ym.replace('-','')}</div>
     </div>
   </div>
 
@@ -1202,6 +1427,7 @@ function switchView(v){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   $('viewTitle').textContent=TITLES[v];
   $('filterZone').style.display = (v==='report'||v==='settings') ? 'none' : '';
+  if(v==='settings'){ renderAccountInfo_(); if(CURRENT_USER && CURRENT_USER.role==='admin') loadUserList(); }
   if(window.innerWidth<1024) toggleSidebar(false);
   refresh();
 }
@@ -1243,6 +1469,7 @@ function bind(){
   document.onkeydown=e=>{ if(e.key==='Escape') closeForm(); };
 }
 (async function init(){
+  checkSession_();
   initSelects(); bind(); loadProject(); updateConnBadge();
   $('apiUrl').value=API_URL;
   $('apiKey').value=API_KEY;
