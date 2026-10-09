@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="referrer" content="no-referrer" />
 <title>TEN CONSULTANTS CO.,LTD. | ระบบทะเบียนรับ-ส่งเอกสารไซต์งาน</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -421,14 +422,13 @@
         </div>
       </div>
 
-      <!-- Google Sheets -->
-      <div class="bg-white rounded-2xl shadow-card p-6">
+      <!-- Google Sheets (เฉพาะผู้ดูแลระบบ) -->
+      <div id="apiCard" class="bg-white rounded-2xl shadow-card p-6 hidden">
         <h3 class="font-bold text-brand-800 mb-1">เชื่อมต่อ Google Sheets (Backend)</h3>
         <p class="text-xs text-ink-500 mb-4">วาง Web App URL จากการ Deploy Google Apps Script (ลงท้ายด้วย <code>/exec</code>)</p>
         <label class="lbl">Web App URL</label>
         <input id="apiUrl" class="fld" placeholder="https://script.google.com/macros/s/AKfycb...../exec" />
-        <label class="lbl mt-3">API Key (ต้องตรงกับค่า API_KEY ในไฟล์ .gs)</label>
-        <input id="apiKey" type="password" class="fld" placeholder="ใส่รหัสลับเดียวกับที่ตั้งไว้ใน Apps Script" />
+        <p class="text-[11px] text-ink-400 mt-2">การยืนยันตัวตนใช้ Session Token ต่อผู้ใช้ — ไม่มี API Key ฝังในหน้าเว็บ (เปลี่ยน URL แล้วต้องเข้าสู่ระบบใหม่)</p>
         <div class="flex flex-wrap gap-2 mt-4">
           <button onclick="saveApi()" class="bg-brand-800 hover:bg-brand-900 text-white text-sm font-semibold px-4 py-2.5 rounded-lg">💾 บันทึก &amp; ทดสอบ</button>
           <button onclick="reloadCloud()" class="bg-ink-100 hover:bg-ink-200 text-ink-700 text-sm font-semibold px-4 py-2.5 rounded-lg">🔄 ดึงข้อมูล</button>
@@ -537,18 +537,23 @@ const CLOSED = ['อนุมัติ','อนุมัติตามหมา
 const PALETTE  = ['#15257e','#3c56bd','#55b99b','#dfa84e','#d97b7b','#6a80d1','#7fbfd6','#9aabe2'];
 const ST_COLOR = {'รอดำเนินการ':'#b4bfcf','อนุมัติ':'#55b99b','อนุมัติตามหมายเหตุ':'#dfa84e','ไม่อนุมัติ':'#d97b7b','ยกเลิก':'#d8dee7'};
 
-const LS_KEY='ten_dcs_docs_v2', LS_API='ten_dcs_api_v2', LS_PRJ='ten_dcs_project_v1', LS_APIKEY='ten_dcs_apikey_v1';
+const LS_KEY='ten_dcs_docs_v2', LS_API='ten_dcs_api_v2', LS_PRJ='ten_dcs_project_v1', LS_APIKEY='ten_dcs_apikey_v1'; // LS_APIKEY: ใช้เฉพาะลบค่าเก่าที่เคยถูกเก็บไว้
+const LS_TOKEN='ten_dcs_token_v3';
+try{ localStorage.removeItem(LS_APIKEY); }catch(e){}   // ลบ API key เก่าที่ค้างในเบราว์เซอร์
 
 /* ตั้งค่าเริ่มต้นสำหรับการเชื่อมต่อ Backend (Google Apps Script Web App)
    ผู้ดูแลระบบใส่ค่าจริงตรงนี้ครั้งเดียวตอน deploy เพื่อให้ผู้ใช้ทุกคน
    เปิดเว็บแล้วเจอหน้า Login ได้เลย โดยไม่ต้องตั้งค่าเอง (ยังแก้ไขทีหลังได้
    ผ่านเมนู ตั้งค่าระบบ ซึ่งจะถูกจำไว้ในเครื่องนั้นแทน) */
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbz3Gt0UHaPHdb6GDN17ieP8kMbdv77Pf9U6t1UZ9VLWWv8DNY31D4fF7N99p-yRVctjxQ/exec';
-const DEFAULT_API_KEY = 'uHdooQmxBnVUUkKbN3865qO355Eb2qmNW8K06R2a';
 
 let DOCS=[], PRJ={...PRJ_DEFAULT};
 let API_URL = localStorage.getItem(LS_API) || DEFAULT_API_URL;
-let API_KEY = localStorage.getItem(LS_APIKEY) || DEFAULT_API_KEY;
+let SESSION_TOKEN = sessionStorage.getItem(LS_TOKEN) || null;   // token ต่อผู้ใช้ (หมดอายุฝั่งเซิร์ฟเวอร์) — ไม่มีความลับถาวรฝังในหน้าเว็บ
+
+/* อนุญาตเฉพาะ Web App ของ Google Apps Script เพื่อไม่ให้ token ถูกส่งไปยังเซิร์ฟเวอร์อื่น */
+function validApiUrl(u){ return /^https:\/\/script\.google\.com\/(a\/macros\/[A-Za-z0-9.-]+\/|macros\/)s\/[A-Za-z0-9_-]+\/exec$/.test(String(u||'')); }
+if(API_URL && !validApiUrl(API_URL)){ API_URL=DEFAULT_API_URL; localStorage.removeItem(LS_API); }
 
 /* =========================================================
    LOGIN — ตรวจสอบ username/password กับ Backend (ไม่มีอยู่ในซอร์สโค้ด)
@@ -556,15 +561,39 @@ let API_KEY = localStorage.getItem(LS_APIKEY) || DEFAULT_API_KEY;
 ========================================================= */
 const LS_LOGIN = 'ten_dcs_session_v2';
 let CURRENT_USER = null;     // {username, displayName, role}
-let CURRENT_PASSWORD = null; // เก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น (ไม่บันทึกลง storage)
-                              // ใช้ยืนยันตัวตนซ้ำเวลาทำรายการที่ต้องเป็น admin เท่านั้น
+const PW_MIN=10;
+function pwPolicyMsg(pw,uname){
+  if(pw.length<PW_MIN) return 'รหัสผ่านต้องมีอย่างน้อย '+PW_MIN+' ตัวอักษร';
+  if(!/[A-Za-z\u0E00-\u0E7F]/.test(pw)||!/[0-9]/.test(pw)) return 'รหัสผ่านต้องมีทั้งตัวอักษรและตัวเลข';
+  if(uname && pw.toLowerCase()===String(uname).toLowerCase()) return 'รหัสผ่านต้องไม่ซ้ำกับชื่อผู้ใช้งาน';
+  return '';
+}
+function clearSession_(){
+  SESSION_TOKEN=null; CURRENT_USER=null;
+  sessionStorage.removeItem(LS_LOGIN); sessionStorage.removeItem(LS_TOKEN);
+  localStorage.removeItem(LS_KEY);   // ไม่ทิ้งข้อมูลเอกสารไว้ในเครื่องหลังออกจากระบบ
+}
+function forceLogout_(msg){
+  clearSession_();
+  try{ sessionStorage.setItem('ten_dcs_notice', msg||''); }catch(e){}
+  location.reload();
+}
+async function loadAfterLogin_(){
+  const cache=localStorage.getItem(LS_KEY);
+  if(cache){ try{ DOCS=JSON.parse(cache);}catch(e){DOCS=[];} }
+  if(API_URL){
+    try{ DOCS=await apiList(); saveLocal(); toast('success','เชื่อมต่อ Google Sheets แล้ว'); }
+    catch(e){ if(!SESSION_TOKEN) return; toast('warning','ดึงข้อมูลออนไลน์ไม่ได้ ใช้ข้อมูลในเครื่องแทน'); }
+  }
+  if(!DOCS.length) loadDemo(false); else refresh();
+}
 
 async function doLogin(ev){
   ev.preventDefault();
   $('loginError').classList.add('hidden');
   const u=$('loginUser').value.trim(), p=$('loginPass').value;
   const btn=$('loginForm').querySelector('button[type=submit]');
-  if(!API_URL || !API_KEY){
+  if(!API_URL){
     $('loginError').textContent='⚠ ระบบยังไม่ได้ตั้งค่าการเชื่อมต่อ Backend กรุณาติดต่อผู้ดูแลระบบ';
     $('loginError').classList.remove('hidden');
     return false;
@@ -572,10 +601,13 @@ async function doLogin(ev){
   btn.disabled=true; const btnTxt=btn.textContent; btn.textContent='กำลังตรวจสอบ...';
   try{
     const res=await api('login',{username:u,password:p});
-    CURRENT_USER=res.data; CURRENT_PASSWORD=p;
+    SESSION_TOKEN=res.data.token;
+    CURRENT_USER={username:res.data.username,displayName:res.data.displayName,role:res.data.role};
+    sessionStorage.setItem(LS_TOKEN, SESSION_TOKEN);
     sessionStorage.setItem(LS_LOGIN, JSON.stringify(CURRENT_USER));
     $('loginForm').reset();
     showApp_(CURRENT_USER);
+    loadAfterLogin_();
   }catch(e){
     $('loginError').textContent='⚠ '+(e.message||'เข้าสู่ระบบไม่สำเร็จ');
     $('loginError').classList.remove('hidden');
@@ -586,7 +618,7 @@ async function doLogin(ev){
 }
 function doLogout(){
   Swal.fire({title:'ออกจากระบบ?',icon:'question',showCancelButton:true,confirmButtonText:'ออกจากระบบ',cancelButtonText:'ยกเลิก',confirmButtonColor:'#15257e'})
-  .then(r=>{ if(r.isConfirmed){ sessionStorage.removeItem(LS_LOGIN); CURRENT_USER=null; CURRENT_PASSWORD=null; location.reload(); }});
+  .then(async r=>{ if(r.isConfirmed){ try{ await api('logout',{}); }catch(e){} clearSession_(); location.reload(); }});
 }
 function showApp_(user){
   $('loginScreen').classList.add('hidden');
@@ -601,11 +633,17 @@ function renderAccountInfo_(){
   if($('acctUsername')) $('acctUsername').textContent=CURRENT_USER.username;
   if($('acctRole')) $('acctRole').textContent = CURRENT_USER.role==='admin' ? 'ผู้ดูแลระบบ (admin)' : 'ผู้ใช้งานทั่วไป (user)';
 }
-function checkSession_(){
-  try{
-    const raw=sessionStorage.getItem(LS_LOGIN);
-    if(raw){ CURRENT_USER=JSON.parse(raw); showApp_(CURRENT_USER); return; }
-  }catch(e){}
+async function checkSession_(){
+  // ไม่เชื่อค่าที่เก็บไว้ในเบราว์เซอร์: ต้องให้เซิร์ฟเวอร์ยืนยัน token ก่อนจึงแสดงแอป/โหลดข้อมูล
+  const note=sessionStorage.getItem('ten_dcs_notice');
+  if(note){ sessionStorage.removeItem('ten_dcs_notice'); $('loginError').textContent='⚠ '+note; $('loginError').classList.remove('hidden'); }
+  if(SESSION_TOKEN && API_URL){
+    try{
+      const res=await api('me',{});
+      CURRENT_USER=res.data; sessionStorage.setItem(LS_LOGIN, JSON.stringify(CURRENT_USER));
+      showApp_(CURRENT_USER); loadAfterLogin_(); return;
+    }catch(e){ clearSession_(); }
+  }
   $('loginUser') && $('loginUser').focus();
 }
 
@@ -615,7 +653,7 @@ async function openChangePassword(){
     title:'เปลี่ยนรหัสผ่าน',
     html:
       '<input id="swalOldPass" type="password" class="swal2-input" placeholder="รหัสผ่านเดิม" autocomplete="current-password">'+
-      '<input id="swalNewPass" type="password" class="swal2-input" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" autocomplete="new-password">'+
+      '<input id="swalNewPass" type="password" class="swal2-input" placeholder="รหัสผ่านใหม่ (อย่างน้อย 10 ตัว มีตัวอักษรและตัวเลข)" autocomplete="new-password">'+
       '<input id="swalNewPass2" type="password" class="swal2-input" placeholder="ยืนยันรหัสผ่านใหม่" autocomplete="new-password">',
     focusConfirm:false, showCancelButton:true, confirmButtonText:'บันทึก', cancelButtonText:'ยกเลิก', confirmButtonColor:'#15257e',
     preConfirm:()=>{
@@ -623,15 +661,15 @@ async function openChangePassword(){
       const n1=document.getElementById('swalNewPass').value;
       const n2=document.getElementById('swalNewPass2').value;
       if(!o||!n1||!n2){ Swal.showValidationMessage('กรุณากรอกให้ครบทุกช่อง'); return false; }
-      if(n1.length<6){ Swal.showValidationMessage('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร'); return false; }
+      const pm=pwPolicyMsg(n1,CURRENT_USER.username); if(pm){ Swal.showValidationMessage(pm); return false; }
       if(n1!==n2){ Swal.showValidationMessage('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน'); return false; }
       return {oldPassword:o,newPassword:n1};
     }
   });
   if(!fv) return;
   try{
-    await api('changePassword',{username:CURRENT_USER.username,oldPassword:fv.oldPassword,newPassword:fv.newPassword});
-    CURRENT_PASSWORD=fv.newPassword;
+    const cr=await api('changePassword',{oldPassword:fv.oldPassword,newPassword:fv.newPassword});
+    SESSION_TOKEN=cr.data.token; sessionStorage.setItem(LS_TOKEN, SESSION_TOKEN);   // session เดิมถูกยกเลิกแล้ว
     Swal.fire({icon:'success',title:'เปลี่ยนรหัสผ่านสำเร็จ',timer:1800,showConfirmButton:false});
   }catch(e){
     Swal.fire({icon:'error',title:'เปลี่ยนรหัสผ่านไม่สำเร็จ',text:e.message,confirmButtonColor:'#15257e'});
@@ -643,25 +681,28 @@ function toggleAdminUI_(){
   const show = CURRENT_USER && CURRENT_USER.role==='admin';
   const card=$('userMgmtCard');
   if(card) card.classList.toggle('hidden', !show);
+  const ac=$('apiCard'); if(ac) ac.classList.toggle('hidden', !show);
   if(show && !$('view-settings').classList.contains('hidden')) loadUserList();
 }
 async function loadUserList(){
   $('userListBody').innerHTML='<tr><td colspan="5" class="py-4 text-center text-ink-400">กำลังโหลด...</td></tr>';
   try{
-    const res=await api('listUsers',{adminUsername:CURRENT_USER.username,adminPassword:CURRENT_PASSWORD});
+    const res=await api('listUsers',{});
     renderUserList(res.data);
   }catch(e){
     $('userListBody').innerHTML='<tr><td colspan="5" class="py-4 text-center text-rose-500">'+esc(e.message)+'</td></tr>';
   }
 }
+let USER_LIST=[];
 function renderUserList(list){
-  $('userListBody').innerHTML=(list||[]).map(u=>`
+  USER_LIST=list||[];
+  $('userListBody').innerHTML=USER_LIST.map((u,i)=>`
     <tr class="border-b border-ink-50">
       <td class="py-2.5 font-semibold">${esc(u.username)}</td>
       <td>${esc(u.displayName||'-')}</td>
       <td>${u.role==='admin' ? '<span class="text-brand-700 font-semibold">ผู้ดูแลระบบ</span>' : 'ผู้ใช้งานทั่วไป'}</td>
       <td>${u.active ? '<span class="text-mint-600 font-semibold">● ใช้งาน</span>' : '<span class="text-rose-500 font-semibold">● ระงับ</span>'}</td>
-      <td class="text-right"><button onclick="openUserForm(${esc(JSON.stringify(u)).replace(/"/g,'&quot;')})" class="text-xs px-2.5 py-1.5 rounded-lg bg-ink-100 text-ink-700 font-semibold hover:bg-ink-200">แก้ไข</button></td>
+      <td class="text-right"><button onclick="openUserForm(USER_LIST[${i}])" class="text-xs px-2.5 py-1.5 rounded-lg bg-ink-100 text-ink-700 font-semibold hover:bg-ink-200">แก้ไข</button></td>
     </tr>`).join('') || '<tr><td colspan="5" class="py-4 text-center text-ink-400">ยังไม่มีผู้ใช้งาน</td></tr>';
 }
 async function openUserForm(existingJson){
@@ -679,7 +720,7 @@ async function openUserForm(existingJson){
       `<label style="display:flex;align-items:center;gap:8px;margin:10px 6px;font-size:14px;color:#414f66">
          <input id="swalActive" type="checkbox" ${(!isEdit||existing.active)?'checked':''}> เปิดใช้งานบัญชีนี้
        </label>`+
-      `<input id="swalPassword" type="password" class="swal2-input" placeholder="${isEdit?'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)':'รหัสผ่าน (อย่างน้อย 6 ตัว)'}" autocomplete="new-password">`,
+      `<input id="swalPassword" type="password" class="swal2-input" placeholder="${isEdit?'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)':'รหัสผ่าน (อย่างน้อย 10 ตัว มีตัวอักษรและตัวเลข)'}" autocomplete="new-password">`,
     focusConfirm:false, showCancelButton:true, confirmButtonText:'บันทึก', cancelButtonText:'ยกเลิก', confirmButtonColor:'#15257e',
     preConfirm:()=>{
       const username=document.getElementById('swalUsername').value.trim();
@@ -688,14 +729,15 @@ async function openUserForm(existingJson){
       const active=document.getElementById('swalActive').checked;
       const password=document.getElementById('swalPassword').value;
       if(!username){ Swal.showValidationMessage('กรุณากรอก Username'); return false; }
-      if(!isEdit && password.length<6){ Swal.showValidationMessage('กรุณากำหนดรหัสผ่านอย่างน้อย 6 ตัวอักษร'); return false; }
-      if(password && password.length<6){ Swal.showValidationMessage('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return false; }
+      if(!/^[A-Za-z0-9._-]{3,40}$/.test(username)){ Swal.showValidationMessage('Username ใช้ได้เฉพาะ A-Z a-z 0-9 . _ - (3-40 ตัว)'); return false; }
+      if(!isEdit && !password){ Swal.showValidationMessage('กรุณากำหนดรหัสผ่าน'); return false; }
+      if(password){ const pm=pwPolicyMsg(password,username); if(pm){ Swal.showValidationMessage(pm); return false; } }
       return {username,displayName,role,active,password};
     }
   });
   if(!fv) return;
   try{
-    await api('saveUser',{adminUsername:CURRENT_USER.username,adminPassword:CURRENT_PASSWORD,
+    await api('saveUser',{
       username:fv.username,displayName:fv.displayName,role:fv.role,active:fv.active,password:fv.password});
     Swal.fire({icon:'success',title:'บันทึกผู้ใช้งานสำเร็จ',timer:1500,showConfirmButton:false});
     loadUserList();
@@ -719,6 +761,9 @@ function fmtFull(d){ if(!d) return '-'; const x=new Date(d); if(isNaN(x)) return
   return x.toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'}); }
 function diffDays(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 function isClosed(s){ return CLOSED.includes(s); }
+function sid(id){ return String(id==null?'':id).replace(/[^A-Za-z0-9_-]/g,''); }   // ใช้กับ id ที่แทรกใน onclick
+function safeUrl(u){ u=String(u||'').trim(); return /^https?:\/\/[^\s]+$/i.test(u)?u:''; }
+function csvCell(v){ let t=String(v??''); if(/^[=+\-@\t\r]/.test(t)) t="'"+t; return '"'+t.replace(/"/g,'""')+'"'; }   // กัน CSV/Formula Injection
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(icon,title){ Swal.fire({toast:true,position:'top-end',icon,title,showConfirmButton:false,timer:2200,timerProgressBar:true}); }
 function monthTH(ym){ const [y,m]=ym.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('th-TH',{month:'long',year:'numeric'}); }
@@ -828,24 +873,26 @@ function updateConnBadge(){
 }
 async function api(action,payload){
   if(!API_URL) throw new Error('ยังไม่ได้ตั้งค่า Web App URL');
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload,key:API_KEY})});
-  const j=await res.json(); if(!j.ok) throw new Error(j.error||'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์'); return j;
+  if(!validApiUrl(API_URL)) throw new Error('Web App URL ไม่ถูกต้อง');
+  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload,token:SESSION_TOKEN}),credentials:'omit',referrerPolicy:'no-referrer'});
+  const j=await res.json();
+  if(!j.ok){
+    if(j.code==='UNAUTHORIZED' && action!=='me' && action!=='logout' && action!=='login'){ forceLogout_('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'); }
+    throw new Error(j.error||'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
+  }
+  return j;
 }
 async function apiList(){
-  const res=await fetch(API_URL+'?action=list&key='+encodeURIComponent(API_KEY)+'&t='+Date.now());
-  const j=await res.json(); if(!j.ok) throw new Error(j.error||'อ่านข้อมูลไม่สำเร็จ'); return j.data||[];
+  const j=await api('list',{}); return j.data||[];
 }
 async function saveApi(){
+  if(!CURRENT_USER || CURRENT_USER.role!=='admin') return toast('warning','เฉพาะผู้ดูแลระบบเท่านั้น');
   const v=$('apiUrl').value.trim();
-  const k=$('apiKey').value.trim();
   if(!v) return toast('warning','กรุณากรอก URL');
-  if(!/\/exec$/.test(v)) return toast('warning','URL ต้องลงท้ายด้วย /exec');
-  if(!k) return toast('warning','กรุณากรอก API Key ให้ตรงกับที่ตั้งไว้ใน Apps Script');
-  API_URL=v; API_KEY=k; localStorage.setItem(LS_API,v); localStorage.setItem(LS_APIKEY,k); updateConnBadge();
-  Swal.fire({title:'กำลังทดสอบการเชื่อมต่อ...',didOpen:()=>Swal.showLoading(),allowOutsideClick:false});
-  try{ const d=await apiList(); DOCS=d; saveLocal(); refresh();
-    Swal.fire({icon:'success',title:'เชื่อมต่อสำเร็จ',text:'พบข้อมูล '+d.length+' รายการบน Google Sheets',confirmButtonColor:'#15257e'});
-  }catch(e){ Swal.fire({icon:'error',title:'เชื่อมต่อไม่สำเร็จ',text:e.message,confirmButtonColor:'#15257e'}); }
+  if(!validApiUrl(v)) return toast('warning','URL ต้องเป็น Google Apps Script Web App (https://script.google.com/macros/s/.../exec)');
+  API_URL=v; localStorage.setItem(LS_API,v);
+  await Swal.fire({icon:'success',title:'บันทึก URL แล้ว',text:'กรุณาเข้าสู่ระบบใหม่เพื่อเชื่อมต่อ Backend นี้',confirmButtonColor:'#15257e'});
+  forceLogout_('');
 }
 async function reloadCloud(){
   if(!API_URL) return toast('warning','ยังไม่ได้เชื่อมต่อ Google Sheets');
@@ -861,7 +908,7 @@ async function pushAllToCloud(){
   try{ await api('bulkImport',DOCS); Swal.close(); toast('success','อัปโหลดสำเร็จ'); }
   catch(e){ Swal.fire({icon:'error',title:'ผิดพลาด',text:e.message}); }
 }
-function disconnectApi(){ API_URL=''; API_KEY=''; localStorage.removeItem(LS_API); localStorage.removeItem(LS_APIKEY); $('apiUrl').value=''; $('apiKey').value=''; updateConnBadge(); toast('info','ตัดการเชื่อมต่อแล้ว ใช้งานแบบออฟไลน์'); }
+function disconnectApi(){ API_URL=''; localStorage.removeItem(LS_API); $('apiUrl').value=''; updateConnBadge(); toast('info','ตัดการเชื่อมต่อแล้ว ใช้งานแบบออฟไลน์'); }
 function wipeLocal(){
   Swal.fire({title:'ล้างข้อมูลในเครื่อง?',icon:'warning',showCancelButton:true,confirmButtonText:'ล้างข้อมูล',cancelButtonText:'ยกเลิก',confirmButtonColor:'#b34a4a'})
   .then(r=>{ if(r.isConfirmed){ DOCS=[]; saveLocal(); refresh(); toast('success','ล้างข้อมูลแล้ว'); }});
@@ -1016,7 +1063,7 @@ function renderWatch(rows){
   if(!list.length){ $('watchList').innerHTML='<p class="text-sm text-ink-400 py-8 text-center">ไม่มีเอกสารค้างในเงื่อนไขที่เลือก 🎉</p>'; return; }
   $('watchList').innerHTML=list.map(d=>{
     const a=agingOf(d);
-    return `<div class="flex items-center gap-3 p-2.5 rounded-xl border border-ink-100 hover:bg-brand-50 cursor-pointer transition" onclick="viewDoc('${d.id}')">
+    return `<div class="flex items-center gap-3 p-2.5 rounded-xl border border-ink-100 hover:bg-brand-50 cursor-pointer transition" onclick="viewDoc('${sid(d.id)}')">
       <div class="w-9 h-9 rounded-lg grid place-items-center text-sm shrink-0 ${isOverdue(d)?'bg-rose-100':'bg-sand-100'}">${d.direction==='รับเข้า'?'📥':'📤'}</div>
       <div class="min-w-0 flex-1">
         <p class="text-[13px] font-semibold text-brand-800 truncate">${esc(d.docNo)} · ${esc(d.title)}</p>
@@ -1040,8 +1087,8 @@ function buildInsights(rows){
   const openRate=Math.round(rows.filter(d=>!isClosed(d.status)).length/rows.length*100);
   const dCnt={}; over.forEach(d=>dCnt[d.discipline]=(dCnt[d.discipline]||0)+1);
   const topDisc=Object.entries(dCnt).sort((a,b)=>b[1]-a[1])[0];
-  items.push({k:'ภาระงานหลัก',v:`${topType[0]} มีสัดส่วนสูงสุด ${topType[1]} ฉบับ (${Math.round(topType[1]/rows.length*100)}%) ควรจัดสรรกำลังคนตรวจสอบให้สอดคล้อง`});
-  if(over.length) items.push({k:'ความเสี่ยง',v:`เอกสารเกินกำหนด ${over.length} ฉบับ${topDisc?` กระจุกที่หมวด "${topDisc[0]}" ${topDisc[1]} ฉบับ`:''} แนะนำออก Follow-up Memo ภายในสัปดาห์นี้`,r:1});
+  items.push({k:'ภาระงานหลัก',v:`${esc(topType[0])} มีสัดส่วนสูงสุด ${topType[1]} ฉบับ (${Math.round(topType[1]/rows.length*100)}%) ควรจัดสรรกำลังคนตรวจสอบให้สอดคล้อง`});
+  if(over.length) items.push({k:'ความเสี่ยง',v:`เอกสารเกินกำหนด ${over.length} ฉบับ${topDisc?` กระจุกที่หมวด "${esc(topDisc[0])}" ${topDisc[1]} ฉบับ`:''} แนะนำออก Follow-up Memo ภายในสัปดาห์นี้`,r:1});
   else items.push({k:'สถานะดี',v:'ไม่พบเอกสารเกินกำหนดในช่วงที่เลือก'});
   if(avg) items.push({k:'Turnaround',v:`ระยะเวลาปิดเรื่องเฉลี่ย ${avg} วัน — ${avg>10?'ช้ากว่ามาตรฐาน ควรทบทวนขั้นตอนอนุมัติ':'อยู่ในเกณฑ์ที่ควบคุมได้'}`});
   if(ncr.length) items.push({k:'คุณภาพงาน',v:`NCR ทั้งหมด ${ncr.length} ฉบับ ค้างปิด ${ncrOpen} ฉบับ ${ncrOpen>3?'ควรเร่งประชุม QA/QC เพื่อปิดประเด็น':'อยู่ในระดับที่จัดการได้'}`});
@@ -1077,9 +1124,9 @@ function renderTable(rows){
       <td class="px-3 py-2.5"><span class="text-[11px] px-2 py-1 rounded-md whitespace-nowrap ${statusStyle(d.status)}">${esc(d.status)}</span></td>
       <td class="px-3 py-2.5 text-center text-[11px] whitespace-nowrap ${a.cls}">${a.text}</td>
       <td class="px-3 py-2.5"><div class="flex gap-1 justify-center">
-        <button onclick="viewDoc('${d.id}')" class="p-1.5 rounded-md hover:bg-brand-100" title="ดูรายละเอียด">👁</button>
-        <button onclick="openForm('${d.id}')" class="p-1.5 rounded-md hover:bg-sand-100" title="แก้ไข">✏️</button>
-        <button onclick="delDoc('${d.id}')" class="p-1.5 rounded-md hover:bg-rose-100" title="ลบ">🗑</button>
+        <button onclick="viewDoc('${sid(d.id)}')" class="p-1.5 rounded-md hover:bg-brand-100" title="ดูรายละเอียด">👁</button>
+        <button onclick="openForm('${sid(d.id)}')" class="p-1.5 rounded-md hover:bg-sand-100" title="แก้ไข">✏️</button>
+        <button onclick="delDoc('${sid(d.id)}')" class="p-1.5 rounded-md hover:bg-rose-100" title="ลบ">🗑</button>
       </div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="10" class="py-14 text-center text-ink-400">ไม่พบข้อมูลตามเงื่อนไขที่ค้นหา</td></tr>';
@@ -1349,6 +1396,7 @@ function autoDue(){
 }
 async function submitForm(){
   if(!$('docForm').reportValidity()) return;
+  if($('fAtt').value.trim() && !safeUrl($('fAtt').value)) return toast('warning','ลิงก์ไฟล์แนบต้องขึ้นต้นด้วย http:// หรือ https://');
   const rec={
     id:$('fId').value||uid(), docNo:$('fDocNo').value.trim(), direction:$('fDir2').value, type:$('fType2').value,
     title:$('fTitle').value.trim(), fromParty:$('fFromP').value.trim(), toParty:$('fToP').value.trim(),
@@ -1397,7 +1445,7 @@ function viewDoc(id){
       ${row('สถานะ',`<span class="px-2 py-0.5 rounded ${statusStyle(d.status)} text-[11px]">${esc(d.status)}</span>`)}
       ${row('ความเร่งด่วน',esc(d.priority||'ปกติ'))}${row('Aging',`<span class="${a.cls}">${a.text}</span>`)}
       ${row('อ้างอิง/Revision',esc(d.refNo||'-'))}
-      ${row('ไฟล์แนบ',d.attachment?`<a href="${esc(d.attachment)}" target="_blank" class="text-blue-700 underline">เปิดไฟล์</a>`:'-')}
+      ${row('ไฟล์แนบ',d.attachment?(safeUrl(d.attachment)?`<a href="${esc(safeUrl(d.attachment))}" target="_blank" rel="noopener noreferrer" class="text-blue-700 underline">เปิดไฟล์</a>`:esc(d.attachment)):'-')}
       ${row('หมายเหตุ',esc(d.remark||'-'))}
     </div>`,
     showCancelButton:true,confirmButtonText:'✏️ แก้ไข',cancelButtonText:'ปิด',confirmButtonColor:'#15257e'
@@ -1408,7 +1456,7 @@ function exportCSV(){
   if(!rows.length) return toast('warning','ไม่มีข้อมูลสำหรับส่งออก');
   const H=['เลขที่เอกสาร','ทิศทาง','ประเภท','เรื่อง','จาก','ถึง','หมวดงาน','วันที่ลงเอกสาร','วันที่รับ/ส่ง','กำหนดตอบกลับ','สถานะ','ความเร่งด่วน','อ้างอิง','ไฟล์แนบ','หมายเหตุ','วันที่ปิดเรื่อง'];
   const body=rows.map(d=>[d.docNo,d.direction,d.type,d.title,d.fromParty,d.toParty,d.discipline,d.docDate,d.transDate,d.dueDate,d.status,d.priority,d.refNo,d.attachment,d.remark,d.closeDate]
-    .map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(','));
+    .map(csvCell).join(','));
   const meta=[`"${COMPANY}"`,`"โครงการ: ${(PRJ.name||'').replace(/"/g,'""')}"`,`"รหัสโครงการ: ${PRJ.code||'-'} | เลขที่สัญญา: ${PRJ.contract||'-'}"`,`"ส่งออกเมื่อ: ${new Date().toLocaleString('th-TH')}"`,''];
   const blob=new Blob(['\uFEFF'+[...meta,H.join(','),...body].join('\n')],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -1469,17 +1517,9 @@ function bind(){
   document.onkeydown=e=>{ if(e.key==='Escape') closeForm(); };
 }
 (async function init(){
-  checkSession_();
   initSelects(); bind(); loadProject(); updateConnBadge();
   $('apiUrl').value=API_URL;
-  $('apiKey').value=API_KEY;
-  const cache=localStorage.getItem(LS_KEY);
-  if(cache){ try{ DOCS=JSON.parse(cache);}catch(e){DOCS=[];} }
-  if(API_URL){
-    try{ DOCS=await apiList(); saveLocal(); toast('success','เชื่อมต่อ Google Sheets แล้ว'); }
-    catch(e){ toast('warning','ดึงข้อมูลออนไลน์ไม่ได้ ใช้ข้อมูลในเครื่องแทน'); }
-  }
-  if(!DOCS.length) loadDemo(false); else refresh();
+  await checkSession_();   // ข้อมูลเอกสารจะถูกโหลดหลังยืนยันตัวตนสำเร็จเท่านั้น
 })();
 </script>
 </body>
